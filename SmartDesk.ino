@@ -1,5 +1,6 @@
 #include <LiquidCrystal.h>
-#include <dht.h>
+#include <DHT.h>
+#include <IRremote.hpp>
 
 struct Time {
   unsigned long hour;
@@ -7,35 +8,30 @@ struct Time {
   unsigned long seconds;
 };
 
-#define SENS_TEMP_PIN 7
+#define SENS_TEMP_PIN 8
 #define LIGHT_PIN A0
-#define GREEN 13
-#define BLUE 8
+#define RED 13
+#define YELLOW 7
+
+DHT dht(8, DHT11);
 
 // Light configuration
-const int BRIGHTNESS_THRESHOLD = 50;
-const int BRIGHTNESS_MIN = 0;
-const int BRIGHTNESS_MAX = 100;
 
 int chk, lightValue, brightnessPercent;
 
-byte coffee[8] = {
-  0b00000,
-  0b11110,
-  0b10010,
-  0b10010,
-  0b10010,
-  0b11110,
-  0b01100,
-  0b00000
-};
-
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
-dht DHT;
+
+
+const int IR_RECEIVE_PIN = 9;
 
 unsigned long startTime = 0;
 unsigned long elapsedTime = 0;
+
+unsigned long lastLCDUpdate = 0;
+unsigned long lastSensorUpdate = 0;
+const unsigned long LCD_UPDATE_INTERVAL = 1000;
+const unsigned long SENSOR_UPDATE_INTERVAL = 2000;
 
 const unsigned long SECONDS = 1000UL;
 const unsigned long MINUTE = 60UL * SECONDS;
@@ -60,29 +56,42 @@ bool isLampNeeded = false;
 Time countdown;
 
 // Improved light control functions
-void setLEDs(bool greenOn, bool blueOn) {
-  digitalWrite(GREEN, greenOn ? HIGH : LOW);
-  digitalWrite(BLUE, blueOn ? HIGH : LOW);
+void setLEDs(bool REDOn, bool YELLOWOn) {
+  // digitalWrite(RED, REDOn ? HIGH : LOW);
+  // digitalWrite(YELLOW, YELLOWOn ? HIGH : LOW);
+
+  digitalWrite(LED_BUILTIN, REDOn ? HIGH : LOW);
+  digitalWrite(LED_BUILTIN, YELLOWOn ? HIGH : LOW);
 }
 
-void updateLightControl() {
-  // Read and process brightness
-  lightValue = analogRead(LIGHT_PIN);
+// allow manual led control
+bool ledOverride = false;
+const int BRIGHTNESS_THRESHOLD = 50;
 
-  Serial.print("Brightness %d", lightValue);
+const int BRIGHTNESS_MIN = 60;
+const int BRIGHTNESS_MAX = 400;
+
+void updateLightControl() {
+  lightValue = analogRead(LIGHT_PIN);
   brightnessPercent = map(lightValue, BRIGHTNESS_MIN, BRIGHTNESS_MAX, 0, 100);
-  
-  // Determine if lamp is needed
   isLampNeeded = (brightnessPercent < BRIGHTNESS_THRESHOLD);
+  Serial.print("Is lamp needed ");
+  Serial.println(isLampNeeded);
+
+  // Serial.print("Brightness: ");
+  // Serial.println(lightValue);
+
+  // Serial.print("Brightness %%: ");
+  // Serial.println(brightnessPercent);
   
   // Update LEDs based on mode and brightness
-  if (!isLampNeeded) {
+  if (!isLampNeeded || !ledOverride) {
     setLEDs(false, false);
   } else {
     if (mode == WORK_MODE) {
-      setLEDs(false, true);  // Blue for work
+      setLEDs(false, true);  // YELLOW for work
     } else {
-      setLEDs(true, false);  // Green for break
+      setLEDs(true, false);  // RED for break
     }
   }
 }
@@ -104,7 +113,6 @@ void breakMode() {
 void getCountdown() {
   elapsedTime = millis() - startTime;
   
-  // Check if countdown finished, reset timer
   if (elapsedTime >= activeTimer) {
     if (mode == WORK_MODE) {
       breakMode();
@@ -116,7 +124,6 @@ void getCountdown() {
     Serial.println("Timer reset! Starting new countdown");
   }
   
-  // Calculate remaining time
   unsigned long remaining = activeTimer - elapsedTime;
   
   countdown.hour = (remaining / 3600000);
@@ -124,35 +131,13 @@ void getCountdown() {
   countdown.seconds = (remaining / 1000) % 60;
 }
 
-void setup() {
-  Serial.begin(9600);
-  lcd.begin(16, 2);
-  
-0  pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(BLUE, OUTPUT);
-  pinMode(GREEN, OUTPUT);
-  
-  startTime = millis();
-  Serial.println("Arduino started!");
-  Serial.println("Countdown timer started!");
-  
-  workMode();
-}
+void updateLCD() {
 
-void loop() {
-  getCountdown();
-  
-  // Read temperature and humidity
-  chk = DHT.read11(SENS_TEMP_PIN);
-  
-  // Update light control (now handles all light logic)
-  updateLightControl();
-  
-  // Display on LCD - Line 1: Mode and Timer
+  // Display countdown timer
+  // Line 1
   lcd.setCursor(0, 0);
   lcd.print(title);
-  
-  // Display countdown timer
+
   if (countdown.hour < 10 && countdown.hour > 0) lcd.print("0");
   if (countdown.hour > 0) lcd.print(countdown.hour); 
   if (countdown.hour > 0) lcd.print(":");
@@ -163,14 +148,69 @@ void loop() {
   lcd.print(countdown.seconds);
   lcd.print("     ");
   
-  // Display on LCD - Line 2: Temperature and Brightness
+  // Line 2: Temperature and Brightness
   lcd.setCursor(0, 1);
   lcd.print("T:");
-  lcd.print(DHT.temperature, 1);
+  lcd.print(dht.readTemperature(), 1);
   lcd.print("C ");
   lcd.print("B:");
   lcd.print(brightnessPercent);
   lcd.print("% ");
+}
+
+void setup() {
+  Serial.begin(9600);
+  lcd.begin(16, 2);
+  IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK);
+
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(YELLOW, OUTPUT);
+  pinMode(RED, OUTPUT);
+
+  startTime = millis();
+  lastLCDUpdate = millis();
+  lastSensorUpdate = millis();
   
-  delay(1000); 
+  Serial.println("Real time SmartDesk");
+  
+  workMode();
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+  
+  if (IrReceiver.decode()) {
+    uint32_t irCode = IrReceiver.decodedIRData.decodedRawData;
+    
+    Serial.print("IR Code: 0x");
+    Serial.println(irCode, HEX);
+    
+    switch (irCode) {
+    case 0xBA45FF00:
+      ledOverride = !ledOverride;
+      Serial.print("led overrride: ");
+      Serial.println(ledOverride);
+      break;
+    default:
+        Serial.println("Unknown button");
+        break;
+    }
+
+    IrReceiver.resume();
+  }
+
+  getCountdown();
+  
+  if (currentMillis - lastSensorUpdate >= SENSOR_UPDATE_INTERVAL) {
+    lastSensorUpdate = currentMillis;
+    // chk = dht.read11(SENS_TEMP_PIN);
+    updateLightControl();
+  }
+  
+  if (currentMillis - lastLCDUpdate >= LCD_UPDATE_INTERVAL) {
+    lastLCDUpdate = currentMillis;
+    updateLCD();
+  }
+
+  delay(300);
 }
