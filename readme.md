@@ -35,7 +35,6 @@ The **Smart Desk Environment Controller** is an autonomous embedded system desig
 | **Yellow LED** | 7 | Work Mode Indicator |
 | **IR Receiver**| 9 | PWM/Digital Input |
 
----
 
 <img src=".images/circuit-diagram.png" alt="description" style="width:700px;"/>
 
@@ -55,7 +54,6 @@ The **Smart Desk Environment Controller** is an autonomous embedded system desig
     *   Select the correct Board (Arduino Uno) and Port.
     *   Click **Upload**.
 
----
 
 ## 🎮 How to Use
 
@@ -73,8 +71,6 @@ The **Smart Desk Environment Controller** is an autonomous embedded system desig
 *   **IR Remote:** Point the remote at the receiver and press the **Power/Toggle Button** (Hex code `0xBA45FF00` mapped).
 *   **Action:** This overrides the light sensor and forces the active LED to stay ON, even in a bright room. Press again to return to Auto Mode.
 
----
-
 ## System Diagram
 
 <img src=".images/flow.png" alt="description" style="height: 1000px;"/>
@@ -84,5 +80,3 @@ The system uses a non-blocking loop (using `millis()`) to handle three concurren
 1.  **Timer Task:** Updates countdown and switches modes.
 2.  **Sensor Task:** Reads DHT11 and LDR every 2 seconds.
 3.  **Display Task:** Refreshes LCD every 1 second.
-
----
