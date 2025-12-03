@@ -1,5 +1,5 @@
 #include <LiquidCrystal.h>
-#include <DHT.h>
+#include <dht.h>
 #include <IRremote.hpp>
 
 struct Time {
@@ -10,18 +10,15 @@ struct Time {
 
 #define SENS_TEMP_PIN 8
 #define LIGHT_PIN A0
-#define RED 13
+#define RED A4
 #define YELLOW 7
 
-DHT dht(8, DHT11);
-
-// Light configuration
+dht DHT;
 
 int chk, lightValue, brightnessPercent;
 
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
-
 
 const int IR_RECEIVE_PIN = 9;
 
@@ -44,7 +41,6 @@ const char breakkStr[] = "Break ";
 const char workStr[] = "Work ";
 char* title = workStr;
 
-// Mode constants
 enum Mode {
   WORK_MODE = 0,
   BREAK_MODE = 1
@@ -55,44 +51,52 @@ bool isLampNeeded = false;
 
 Time countdown;
 
-// Improved light control functions
 void setLEDs(bool REDOn, bool YELLOWOn) {
-  // digitalWrite(RED, REDOn ? HIGH : LOW);
-  // digitalWrite(YELLOW, YELLOWOn ? HIGH : LOW);
-
-  digitalWrite(LED_BUILTIN, REDOn ? HIGH : LOW);
-  digitalWrite(LED_BUILTIN, YELLOWOn ? HIGH : LOW);
+  Serial.print("Red ");
+  Serial.print(REDOn);
+  Serial.print(" Yellow ");
+  Serial.print(YELLOWOn);
+  
+  digitalWrite(RED, REDOn ? HIGH : LOW);
+  digitalWrite(YELLOW, YELLOWOn ? HIGH : LOW);
 }
 
 // allow manual led control
 bool ledOverride = false;
 const int BRIGHTNESS_THRESHOLD = 50;
 
-const int BRIGHTNESS_MIN = 60;
+const int BRIGHTNESS_MIN = 30;
 const int BRIGHTNESS_MAX = 400;
 
 void updateLightControl() {
   lightValue = analogRead(LIGHT_PIN);
+  
   brightnessPercent = map(lightValue, BRIGHTNESS_MIN, BRIGHTNESS_MAX, 0, 100);
   isLampNeeded = (brightnessPercent < BRIGHTNESS_THRESHOLD);
   Serial.print("Is lamp needed ");
   Serial.println(isLampNeeded);
 
-  // Serial.print("Brightness: ");
-  // Serial.println(lightValue);
+  Serial.print("Brightness: ");
+  Serial.println(lightValue);
 
-  // Serial.print("Brightness %%: ");
-  // Serial.println(brightnessPercent);
+  Serial.print("Brightness %: ");
+  Serial.println(brightnessPercent);
   
-  // Update LEDs based on mode and brightness
-  if (!isLampNeeded || !ledOverride) {
-    setLEDs(false, false);
-  } else {
+  if (ledOverride) {
     if (mode == WORK_MODE) {
-      setLEDs(false, true);  // YELLOW for work
+      setLEDs(false, true);  // YELLOW
     } else {
-      setLEDs(true, false);  // RED for break
+      setLEDs(true, false);   // RED
     }
+  } else if (isLampNeeded) {
+    // Auto mode - LEDs on only if dark enough
+    if (mode == WORK_MODE) {
+      setLEDs(false, true);
+    } else {
+      setLEDs(true, false);
+    }
+  } else {
+    setLEDs(false, false);  // Off if not needed and not overridden
   }
 }
 
@@ -151,7 +155,7 @@ void updateLCD() {
   // Line 2: Temperature and Brightness
   lcd.setCursor(0, 1);
   lcd.print("T:");
-  lcd.print(dht.readTemperature(), 1);
+  lcd.print(DHT.temperature, 1);
   lcd.print("C ");
   lcd.print("B:");
   lcd.print(brightnessPercent);
@@ -163,7 +167,6 @@ void setup() {
   lcd.begin(16, 2);
   IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK);
 
-  pinMode(LED_BUILTIN, OUTPUT);
   pinMode(YELLOW, OUTPUT);
   pinMode(RED, OUTPUT);
 
@@ -203,7 +206,7 @@ void loop() {
   
   if (currentMillis - lastSensorUpdate >= SENSOR_UPDATE_INTERVAL) {
     lastSensorUpdate = currentMillis;
-    // chk = dht.read11(SENS_TEMP_PIN);
+    chk = DHT.read11(SENS_TEMP_PIN);
     updateLightControl();
   }
   
