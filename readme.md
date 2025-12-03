@@ -37,7 +37,7 @@ The **Smart Desk Environment Controller** is an autonomous embedded system desig
 
 ---
 
-<img src=".images/circuit-diagram.png" alt="description" style="height: 500px; width:500px;"/>
+<img src=".images/circuit-diagram.png" alt="description" style="width:700px;"/>
 
 ## 🚀 Installation & Setup
 
@@ -75,9 +75,9 @@ The **Smart Desk Environment Controller** is an autonomous embedded system desig
 
 ---
 
-## 🧠 System Logic
+## System Diagram
 
-<img src=".images/flow.png" alt="description" style="height: 500px; width:800px;"/>
+<img src=".images/flow.png" alt="description" style="height: 1000px;"/>
 
 **State Machine:**
 The system uses a non-blocking loop (using `millis()`) to handle three concurrent tasks:
