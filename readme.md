@@ -77,7 +77,7 @@ The **Smart Desk Environment Controller** is an autonomous embedded system desig
 
 ## 🧠 System Logic
 
-<img src=".images/flow.png" alt="description" style="height: 500px; width:500px;"/>
+<img src=".images/flow.png" alt="description" style="height: 500px; width:800px;"/>
 
 **State Machine:**
 The system uses a non-blocking loop (using `millis()`) to handle three concurrent tasks:
